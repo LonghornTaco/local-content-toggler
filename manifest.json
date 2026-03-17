@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Sitecore Pages Local Content Toggler",
+  "description": "Toggle Sitecore Pages to use content from your local CM instance",
+  "version": "1.0.0",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://pages.sitecorecloud.io/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-off-16.png",
+      "48": "icons/icon-off-48.png",
+      "128": "icons/icon-off-128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "icons/icon-off-16.png",
+    "48": "icons/icon-off-48.png",
+    "128": "icons/icon-off-128.png"
+  }
+}

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Local Content</h1>
+
+    <div id="not-pages" class="notice" hidden>
+      <p>Navigate to <strong>pages.sitecorecloud.io</strong> to use this extension.</p>
+    </div>
+
+    <div id="controls">
+      <div class="toggle-row">
+        <label class="switch">
+          <input type="checkbox" id="toggle">
+          <span class="slider"></span>
+        </label>
+        <span id="status-label" class="status-label">Off</span>
+      </div>
+
+      <div class="url-field">
+        <label for="url-input">Local CM URL</label>
+        <input type="text" id="url-input" placeholder="https://local.cm.mcc.mayo.edu/">
+      </div>
+
+      <button id="save-url" class="btn-save">Save URL</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
