@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <div id="not-pages" class="notice" hidden>
+      <p>Navigate to <strong>pages.sitecorecloud.io</strong> to use this extension.</p>
+    </div>
+
+    <div id="controls">
+      <div class="toggle-row">
+        <label class="switch">
+          <input type="checkbox" id="toggle">
+          <span class="slider"></span>
+        </label>
+        <span id="status-label" class="status-label">Off</span>
+      </div>
+
+      <div class="url-field">
+        <label for="cm-url">Content (CM)</label>
+        <input type="text" id="cm-url" placeholder="https://local.cm.example.com/">
+      </div>
+
+      <div class="url-field">
+        <label for="rh-url">Rendering Host</label>
+        <input type="text" id="rh-url" placeholder="https://local.example.com">
+      </div>
+
+      <button id="save-btn" class="btn-save">Save URLs</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
