@@ -1,4 +1,5 @@
-const STORAGE_KEY = 'Sitecore.Pages.LocalXmCloudUrl';
+const CM_STORAGE_KEY = 'Sitecore.Pages.LocalXmCloudUrl';
+const RH_STORAGE_KEY_PREFIX = 'Sitecore.Pages.LocalRenderingHostUrl';
 const PAGES_ORIGIN = 'https://pages.sitecorecloud.io';
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -18,34 +19,42 @@ async function updateBadge(tabId) {
   try {
     const results = await chrome.scripting.executeScript({
       target: { tabId },
-      func: (key) => localStorage.getItem(key),
-      args: [STORAGE_KEY]
+      func: (cmKey, rhPrefix) => {
+        const cmOn = localStorage.getItem(cmKey) != null;
+        let rhOn = false;
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key.startsWith(rhPrefix)) {
+            rhOn = localStorage.getItem(key) != null;
+            break;
+          }
+        }
+        return { cmOn, rhOn };
+      },
+      args: [CM_STORAGE_KEY, RH_STORAGE_KEY_PREFIX]
     });
 
-    const isEnabled = results[0]?.result != null;
-    setBadge(tabId, isEnabled);
+    const { cmOn, rhOn } = results[0]?.result || {};
+    const anyOn = cmOn || rhOn;
+
+    let badgeText = '';
+    if (cmOn && rhOn) badgeText = 'ALL';
+    else if (cmOn) badgeText = 'CM';
+    else if (rhOn) badgeText = 'RH';
+
+    chrome.action.setBadgeText({ tabId, text: badgeText });
+    chrome.action.setBadgeBackgroundColor({ tabId, color: anyOn ? '#22c55e' : '#6b7280' });
+
+    const iconState = anyOn ? 'on' : 'off';
+    chrome.action.setIcon({
+      tabId,
+      path: {
+        16: `icons/icon-${iconState}-16.png`,
+        48: `icons/icon-${iconState}-48.png`,
+        128: `icons/icon-${iconState}-128.png`
+      }
+    });
   } catch {
     // Tab may not be accessible — ignore
   }
-}
-
-function setBadge(tabId, isEnabled) {
-  chrome.action.setBadgeText({
-    tabId,
-    text: isEnabled ? 'ON' : ''
-  });
-  chrome.action.setBadgeBackgroundColor({
-    tabId,
-    color: isEnabled ? '#22c55e' : '#6b7280'
-  });
-
-  const size = isEnabled ? 'on' : 'off';
-  chrome.action.setIcon({
-    tabId,
-    path: {
-      16: `icons/icon-${size}-16.png`,
-      48: `icons/icon-${size}-48.png`,
-      128: `icons/icon-${size}-128.png`
-    }
-  });
 }
