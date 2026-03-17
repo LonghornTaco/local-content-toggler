@@ -4,18 +4,16 @@ const DEFAULT_CM_URL = 'https://local.cm.mcc.mayo.edu/';
 const DEFAULT_RH_URL = 'https://local.mcc.mayo.edu';
 const PAGES_ORIGIN = 'https://pages.sitecorecloud.io';
 
-const cmToggle = document.getElementById('cm-toggle');
-const cmStatus = document.getElementById('cm-status');
+const toggle = document.getElementById('toggle');
+const statusLabel = document.getElementById('status-label');
 const cmUrl = document.getElementById('cm-url');
-const rhToggle = document.getElementById('rh-toggle');
-const rhStatus = document.getElementById('rh-status');
 const rhUrl = document.getElementById('rh-url');
 const saveBtn = document.getElementById('save-btn');
 const controls = document.getElementById('controls');
 const notPages = document.getElementById('not-pages');
 
 let currentTabId = null;
-let detectedRhKey = null; // Full key including |GUID suffix
+let detectedRhKey = null;
 
 async function init() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -28,7 +26,7 @@ async function init() {
 
   currentTabId = tab.id;
 
-  // Load saved URLs from chrome.storage
+  // Load saved URLs
   const stored = await chrome.storage.sync.get({
     localCmUrl: DEFAULT_CM_URL,
     localRhUrl: DEFAULT_RH_URL,
@@ -37,13 +35,11 @@ async function init() {
   cmUrl.value = stored.localCmUrl;
   rhUrl.value = stored.localRhUrl;
 
-  // Read current localStorage state from the page
+  // Read current localStorage state
   const results = await chrome.scripting.executeScript({
     target: { tabId: currentTabId },
     func: (cmKey, rhPrefix) => {
       const cm = localStorage.getItem(cmKey);
-
-      // Find the rendering host key by prefix (includes |GUID suffix)
       let rhKey = null;
       let rh = null;
       for (let i = 0; i < localStorage.length; i++) {
@@ -54,7 +50,6 @@ async function init() {
           break;
         }
       }
-
       return { cm, rh, rhKey };
     },
     args: [CM_STORAGE_KEY, RH_STORAGE_KEY_PREFIX]
@@ -62,106 +57,64 @@ async function init() {
 
   const state = results[0]?.result || {};
 
-  // CM toggle
-  const cmEnabled = state.cm != null;
-  cmToggle.checked = cmEnabled;
-  updateLabel(cmStatus, cmEnabled);
-  if (cmEnabled && state.cm) cmUrl.value = state.cm;
+  // Either override is on = toggle is on
+  const isEnabled = state.cm != null || state.rh != null;
+  toggle.checked = isEnabled;
+  updateLabel(isEnabled);
 
-  // Rendering host toggle
+  if (state.cm) cmUrl.value = state.cm;
+  if (state.rh) rhUrl.value = state.rh;
+
   detectedRhKey = state.rhKey;
-  const rhEnabled = state.rh != null;
-  rhToggle.checked = rhEnabled;
-  updateLabel(rhStatus, rhEnabled);
-  if (rhEnabled && state.rh) rhUrl.value = state.rh;
-
-  // If we detected a key with GUID, save the suffix for future use
   if (detectedRhKey) {
     const suffix = detectedRhKey.substring(RH_STORAGE_KEY_PREFIX.length);
     await chrome.storage.sync.set({ rhKeySuffix: suffix });
   }
 }
 
-function updateLabel(el, isEnabled) {
-  el.textContent = isEnabled ? 'On' : 'Off';
-  el.classList.toggle('active', isEnabled);
+function updateLabel(isEnabled) {
+  statusLabel.textContent = isEnabled ? 'Local' : 'Off';
+  statusLabel.classList.toggle('active', isEnabled);
 }
 
 async function getRhFullKey() {
-  // Use detected key if available, otherwise construct from stored suffix
   if (detectedRhKey) return detectedRhKey;
   const { rhKeySuffix } = await chrome.storage.sync.get({ rhKeySuffix: '' });
   if (rhKeySuffix) return RH_STORAGE_KEY_PREFIX + rhKeySuffix;
   return null;
 }
 
-cmToggle.addEventListener('change', async () => {
-  const enabled = cmToggle.checked;
-  const url = cmUrl.value.trim() || DEFAULT_CM_URL;
+toggle.addEventListener('change', async () => {
+  const enabled = toggle.checked;
+  const cm = cmUrl.value.trim() || DEFAULT_CM_URL;
+  const rh = rhUrl.value.trim() || DEFAULT_RH_URL;
+  const rhKey = await getRhFullKey();
 
   await chrome.scripting.executeScript({
     target: { tabId: currentTabId },
-    func: (key, value, shouldEnable) => {
+    func: (cmKey, cmVal, rhKey, rhVal, shouldEnable) => {
       if (shouldEnable) {
-        localStorage.setItem(key, value);
+        localStorage.setItem(cmKey, cmVal);
+        if (rhKey) localStorage.setItem(rhKey, rhVal);
       } else {
-        localStorage.removeItem(key);
+        localStorage.removeItem(cmKey);
+        if (rhKey) localStorage.removeItem(rhKey);
       }
     },
-    args: [CM_STORAGE_KEY, url, enabled]
+    args: [CM_STORAGE_KEY, cm, rhKey, rh, enabled]
   });
 
-  updateLabel(cmStatus, enabled);
-  updateBadgeAndIcon();
+  updateLabel(enabled);
+  updateBadgeAndIcon(enabled);
   chrome.tabs.reload(currentTabId);
   window.close();
 });
 
-rhToggle.addEventListener('change', async () => {
-  const enabled = rhToggle.checked;
-  const url = rhUrl.value.trim() || DEFAULT_RH_URL;
-  const fullKey = await getRhFullKey();
+function updateBadgeAndIcon(isEnabled) {
+  chrome.action.setBadgeText({ tabId: currentTabId, text: isEnabled ? 'ON' : '' });
+  chrome.action.setBadgeBackgroundColor({ tabId: currentTabId, color: isEnabled ? '#22c55e' : '#6b7280' });
 
-  if (!fullKey) {
-    // No GUID known — need to scan or prompt
-    rhToggle.checked = false;
-    rhStatus.textContent = 'No key found';
-    rhStatus.style.color = '#dc2626';
-    return;
-  }
-
-  await chrome.scripting.executeScript({
-    target: { tabId: currentTabId },
-    func: (key, value, shouldEnable) => {
-      if (shouldEnable) {
-        localStorage.setItem(key, value);
-      } else {
-        localStorage.removeItem(key);
-      }
-    },
-    args: [fullKey, url, enabled]
-  });
-
-  updateLabel(rhStatus, enabled);
-  updateBadgeAndIcon();
-  chrome.tabs.reload(currentTabId);
-  window.close();
-});
-
-async function updateBadgeAndIcon() {
-  const cmOn = cmToggle.checked;
-  const rhOn = rhToggle.checked;
-  const anyOn = cmOn || rhOn;
-
-  let badgeText = '';
-  if (cmOn && rhOn) badgeText = 'ALL';
-  else if (cmOn) badgeText = 'CM';
-  else if (rhOn) badgeText = 'RH';
-
-  chrome.action.setBadgeText({ tabId: currentTabId, text: badgeText });
-  chrome.action.setBadgeBackgroundColor({ tabId: currentTabId, color: anyOn ? '#22c55e' : '#6b7280' });
-
-  const iconState = anyOn ? 'on' : 'off';
+  const iconState = isEnabled ? 'on' : 'off';
   chrome.action.setIcon({
     tabId: currentTabId,
     path: {
@@ -177,21 +130,16 @@ saveBtn.addEventListener('click', async () => {
   const rh = rhUrl.value.trim() || DEFAULT_RH_URL;
   await chrome.storage.sync.set({ localCmUrl: cm, localRhUrl: rh });
 
-  // If toggles are on, update localStorage too
-  if (cmToggle.checked) {
+  // If toggle is on, update localStorage too
+  if (toggle.checked) {
+    const rhKey = await getRhFullKey();
     await chrome.scripting.executeScript({
       target: { tabId: currentTabId },
-      func: (key, value) => localStorage.setItem(key, value),
-      args: [CM_STORAGE_KEY, cm]
-    });
-  }
-
-  const fullKey = await getRhFullKey();
-  if (rhToggle.checked && fullKey) {
-    await chrome.scripting.executeScript({
-      target: { tabId: currentTabId },
-      func: (key, value) => localStorage.setItem(key, value),
-      args: [fullKey, rh]
+      func: (cmKey, cmVal, rhKey, rhVal) => {
+        localStorage.setItem(cmKey, cmVal);
+        if (rhKey) localStorage.setItem(rhKey, rhVal);
+      },
+      args: [CM_STORAGE_KEY, cm, rhKey, rh]
     });
   }
 
